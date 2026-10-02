@@ -1,0 +1,3 @@
+# ablesio-shelly – freigegebene Script-Versionen
+# Format (eine Zeile je Version):  <sha256 der kompakten Gerätefassung>  <version>  <JJJJ-MM-TT>  <hinweis>
+# Noch leer: Einträge erst, wenn der Melde-Link im Gerätespeicher (KVS) liegt und alle Stecker identischen Code haben.
