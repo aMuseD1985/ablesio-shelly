@@ -4,7 +4,7 @@
 // Kein Cloud-Konto noetig. In der Shelly-Weboberflaeche: Scripts -> Create script -> einfuegen -> Save -> Start, "Run on startup" aktivieren.
 let PRODUCTION = false;                                              // aus dem Geraetespeicher (ablesio_prod)
 let CONFIG = { url: "", everyMin: 15, bufferMax: 96, batch: 48 };
-const REV = "aaa5315772";                                                // Script-Version (fuer Fern-Updates)
+const REV = "bb330b71a0";                                                // Script-Version (fuer Fern-Updates)
 let queue = [];
 let busy = false;
 let DEVICE = null;                                                   // Shelly-ID, Modell, MAC - bindet das Geraet an den Zaehler
@@ -281,7 +281,7 @@ function tick() {
 }
 // --- Update-Sperre: neuer Code wird nur geholt, wenn der Kunde es am Geraet bestaetigt hat (einmal die Taste druecken, im Zeitfenster von ablesio) ---
 // Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste steht dauerhaft auf "momentary" (Attached) und schaltet das Relais; gezaehlt wird nur im Freigabe-Fenster.
-const UPD_PROBE = 3;   // Kennung fuer den Update-Test (nur KVS-Fassung)
+const UPD_PROBE = 7;   // Kennung fuer den Update-Test (nur KVS-Fassung)
 let POLLM = false; let GATE = { c: 0, on: 0, n: 0, ev: "" }; let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
 function cfUi() { return (LED.ui === "PLUGS_UI" || LED.ui === "PLUGUK_UI") ? LED.ui : ""; }
 function cfEnd() {

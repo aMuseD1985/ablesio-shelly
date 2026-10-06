@@ -4,6 +4,10 @@
 
 - **Taste dauerhaft auf `momentary` („Attached“):** Das Script stellt die Taste beim Start auf `momentary` (vorher `detached`) und wechselt im Update-Fenster nicht mehr. Drücke werden nur gezählt, solange ein Update freigegeben ist. Kehrseite: Ein Druck im Alltag schaltet das Relais um.
 
+## cc48f9c9b9 – ablesio Build 2026-10-06.178
+
+- **Folge-Version für den Update-Test:** nur die Test-Kennung `UPD_PROBE` geändert (7 statt 3), Funktion sonst unverändert. Dient dazu, den Update-Weg (Freigabe in der App, Taste im Fenster, Download, Prüfsumme) auf einem Stecker mit `691859d795` zu prüfen.
+
 ## 691859d795 – ablesio Build 2026-10-06.177
 
 - **Ein Tastendruck im Freigabe-Fenster genügt** (vorher dreimal): Sobald der Kunde das Update in der App freigegeben hat und der Ring lila leuchtet, startet der erste Druck das Update. Das Relais wird danach wieder eingeschaltet.

@@ -9,3 +9,4 @@ b491ba397797c890bf6a3b8494eb1a319890af29ca8ae810ee0bbb1e4e303af2  4c4f1b9d62  20
 7c4f289f1d9086de6c3fcb6735a32adfb31b4105ae9d960fd69122d698b12898  58e961b7ea  2026-10-06  Update-Test: Folge-Version (nur Testkennung), Gegenprobe fuer den Update-Weg, 11711 Bytes
 b3067878ad66e81473ab81c55560a4308af6d4c183e4b5766cbbfd6fb7b0b838  e013b76372  2026-10-06  Taste dauerhaft auf momentary (Attached), Zaehlen nur im Freigabe-Fenster, 11489 Bytes
 584f6327dbe04ac74f0778c18aeda95d75b1639282529e3e5a46e495e2e69923  691859d795  2026-10-06  Einmal Taste im Freigabe-Fenster, Diagnosefeld gate in der Meldung, robustere Tastenerkennung, 11607 Bytes
+da0cee20584961b788c593e83c2b0428b27ce48a0f8fce292308ae7235a1e846  cc48f9c9b9  2026-10-06  Folge-Version fuer den Update-Test (nur Testkennung), 11607 Bytes
