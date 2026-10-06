@@ -4,7 +4,7 @@
 // Kein Cloud-Konto noetig. In der Shelly-Weboberflaeche: Scripts -> Create script -> einfuegen -> Save -> Start, "Run on startup" aktivieren.
 let PRODUCTION = false;                                              // aus dem Geraetespeicher (ablesio_prod)
 let CONFIG = { url: "", everyMin: 15, bufferMax: 96, batch: 48 };
-const REV = "fc88d4b1ad";                                                // Script-Version (fuer Fern-Updates)
+const REV = "de19ff41a7";                                                // Script-Version (fuer Fern-Updates)
 let queue = [];
 let busy = false;
 let DEVICE = null;                                                   // Shelly-ID, Modell, MAC - bindet das Geraet an den Zaehler
@@ -35,7 +35,7 @@ rpc("Sys.GetConfig", {}, function (c) { if (c && c.device) { ECO = c.device.eco_
 // Jede Farbaenderung ist eine Konfig-Schreibung im Flash: darum nur bei Zustandswechsel (kein Blinken/Aufblitzen), mit Tageslimit.
 let LED = { ui: null, ch: "switch:0", mode: "status", xfer: false, state: "idle", shown: "", max: 300, writes: 0, day: -1, busy: false, told: false };
 const LED_RGB = { idle: [100, 45, 0], measure: [0, 35, 100], move: [0, 100, 25], send: [70, 0, 100], error: [100, 0, 0] };
-const LED_DIM = { idle: 25, measure: 30, move: 90, send: 60, error: 60 };
+const LED_DIM = { idle: 100, measure: 100, move: 100, send: 100, error: 100 };
 function ledProbe(i) {
   let n = ["PLUGS_UI", "PLUGUK_UI", "PLUGPM_UI"];
   if (i >= n.length) { LED.ui = ""; return; }                           // Geraet ohne LED-Ring (z. B. PM Mini, Plus PM)
@@ -65,7 +65,7 @@ function ledSet(rgb, bri, cb) {
   if (LED.ch === "pm1:0") col[LED.ch] = { on: { rgb: rgb, brightness: bri } };
   else col[LED.ch] = { on: { rgb: rgb, brightness: bri }, off: { rgb: rgb, brightness: bri } };
   LED.writes++;
-  rpc(LED.ui + ".SetConfig", { config: { leds: { mode: "switch", colors: col } } }, function () { if (cb) cb(); });
+  rpc(LED.ui + ".SetConfig", { config: { leds: { mode: "switch", colors: col } } }, function (r, e, m) { if (e !== 0) ledErr(m); if (cb) cb(); });
 }
 function ledWant() { return failStreak >= 2 ? "error" : (LED.xfer ? "send" : LED.state); }
 function ledXfer(on) { if (LED.xfer === on) return; LED.xfer = on; ledApply(false); }   // lila nur bei groesseren Uebertragungen
@@ -87,7 +87,7 @@ function ledReply(c) {
   if (typeof c.max === "number" && c.max >= 0 && c.max <= 2000) LED.max = c.max;
   ledApply(false);
 }
-function ledStatus() { return { ui: LED.ui, state: LED.mode === "status" ? ledWant() : LED.mode, writes: LED.writes }; }
+function ledStatus() { return { ui: LED.ui, state: LED.mode === "status" ? ledWant() : LED.mode, writes: LED.writes, err: LED.err }; }
 ledProbe(0);
 
 function readEnergy(cb) {
@@ -281,7 +281,7 @@ function tick() {
 }
 // --- Update-Sperre: neuer Code wird nur geholt, wenn der Kunde es am Geraet bestaetigt hat (einmal die Taste druecken, im Zeitfenster von ablesio) ---
 // Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste steht dauerhaft auf "momentary" (Attached) und schaltet das Relais; gezaehlt wird nur im Freigabe-Fenster.
-const UPD_PROBE = 8;   // Kennung fuer den Update-Test (nur KVS-Fassung)
+const UPD_PROBE = 9;   // Kennung fuer den Update-Test (nur KVS-Fassung)
 function jit(m) { let r = 0; try { r = Math.random() - 0.5; } catch (x) { r = 0; } return m < 5 ? 0 : Math.floor(r * 60000); }   // Meldezeit je Runde um bis zu +-30 s streuen (nur bei langem Takt), damit nicht alle Stecker zur selben Sekunde melden
 let POLLM = false; let GATE = { c: 0, on: 0, n: 0, ev: "" }; let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
 function cfUi() { return (LED.ui === "PLUGS_UI" || LED.ui === "PLUGUK_UI") ? LED.ui : ""; }
@@ -323,15 +323,18 @@ function cfgLoad() {
   });
 }
 cfgLoad();
-// --- Ring nicht lila haengen lassen: lila gilt nur waehrend Update-Fenster, Update oder groesserer Uebertragung. Alle 60 s abgleichen; nach einem Neustart ein von der Vorversion hinterlassenes Lila (Farbe 70/0/100) zuruecksetzen. ---
+// --- Ring nicht lila haengen lassen: lila gilt nur waehrend Update-Fenster, Update oder groesserer Uebertragung. Alle 60 s abgleichen. ---
 Timer.set(60000, true, function () { if (LED.xfer && !CF.on && !updBusy && queue.length <= 3) ledXfer(false); });
-Timer.set(25000, false, function () {
-  if (LED.told || !LED.ui) return;
+function ledErr(m) { LED.err = String(m).slice(0, 50); LED.shown = ""; if (!LED.rt) { LED.rt = 1; Timer.set(20000, false, function () { LED.rt = 0; ledApply(false); }); } }   // Schreiben abgelehnt: merken (led.err in der Meldung) und nach 20 s noch einmal
+// Ring abgleichen (30 s nach dem Start, dann alle 10 Minuten): steht am Geraet eine andere Farbe als gewollt (z. B. Lila von einem Update), neu schreiben. Nur Lesen, geschrieben wird nur bei Abweichung.
+function ledAudit() {
+  if (!LED.ui || !LED.told || LED.mode !== "status" || CF.on || updBusy) return;
   rpc(LED.ui + ".GetConfig", {}, function (c, e) {
-    let k = (e === 0 && c && c.leds && c.leds.mode === "switch" && c.leds.colors) ? c.leds.colors[LED.ch] : null;
-    if (k && k.on && k.on.rgb && Math.round(k.on.rgb[0]) === 70 && Math.round(k.on.rgb[2]) === 100) ledSet(LED_RGB.idle, LED_DIM.idle, null);
+    let k = (e === 0 && c && c.leds && c.leds.colors) ? c.leds.colors[LED.ch] : null, w = LED_RGB[ledWant()];
+    if (c && c.leds && (c.leds.mode !== "switch" || (k && k.on && k.on.rgb && Math.round(k.on.rgb[0]) !== w[0] || Math.round(k.on.brightness) !== 100))) { LED.shown = ""; ledApply(false); }
   });
-});
+}
+Timer.set(30000, false, ledAudit); Timer.set(600000, true, ledAudit);
 // --- Freier Arbeitsspeicher (Matter bleibt wie vom Kunden eingestellt): alle 5 Minuten messen, steht als ram in der Meldung ---
 let RAM = 0;
 function ramRead() { rpc("Sys.GetStatus", {}, function (r) { if (r && typeof r.ram_free === "number") RAM = r.ram_free; }); }

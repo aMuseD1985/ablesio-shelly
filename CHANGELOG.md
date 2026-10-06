@@ -4,6 +4,11 @@
 
 - **Taste dauerhaft auf `momentary` („Attached“):** Das Script stellt die Taste beim Start auf `momentary` (vorher `detached`) und wechselt im Update-Fenster nicht mehr. Drücke werden nur gezählt, solange ein Update freigegeben ist. Kehrseite: Ein Druck im Alltag schaltet das Relais um.
 
+## be75c15a37 – ablesio Build 2026-10-06.185
+
+- **Ring immer mit voller Helligkeit** (100 statt 25–90), in allen Fassungen.
+- **Ring bleibt nicht mehr in der falschen Farbe hängen:** Wird das Schreiben der Ringfarbe vom Gerät abgelehnt, merkt das Script den Fehler (`led.err` in der Meldung) und versucht es nach 20 s noch einmal. 30 s nach dem Start und danach alle 10 Minuten liest es die tatsächliche Farbe und Helligkeit und schreibt bei Abweichung neu (behebt das dauerhafte Lila nach einem Update). Geschrieben wird nur bei Abweichung (Flash-Schonung, Tageslimit bleibt).
+
 ## b22562edab – ablesio Build 2026-10-06.180
 
 - **Ring bleibt nicht lila hängen:** Alle 60 s wird ein Lila ohne Grund (kein Update-Fenster, kein Update, keine große Übertragung) zurückgesetzt. 25 s nach dem Start wird ein von der Vorversion hinterlassenes Lila zurückgesetzt.
