@@ -4,7 +4,7 @@
 // Kein Cloud-Konto noetig. In der Shelly-Weboberflaeche: Scripts -> Create script -> einfuegen -> Save -> Start, "Run on startup" aktivieren.
 let PRODUCTION = false;                                              // aus dem Geraetespeicher (ablesio_prod)
 let CONFIG = { url: "", everyMin: 15, bufferMax: 96, batch: 48 };
-const REV = "b87d7bc230";                                                // Script-Version (fuer Fern-Updates)
+const REV = "aaa5315772";                                                // Script-Version (fuer Fern-Updates)
 let queue = [];
 let busy = false;
 let DEVICE = null;                                                   // Shelly-ID, Modell, MAC - bindet das Geraet an den Zaehler
@@ -225,7 +225,7 @@ function nameRule(n) {
   rpc("Sys.SetConfig", { config: { device: { name: n } } }, function (r, e) { if (e === 0) NAME = n; });
 }
 function onFail() { failStreak++; if (failStreak >= 2) { ecoRule(false); ledApply(false); } }
-function status() { return { cfg: "kvs", rssi: RSSI, eco: ECO, rev: REV, fw: FW, fw_new: fwNew, led: ledStatus() }; }
+function status() { return { cfg: "kvs", gate: GATE, rssi: RSSI, eco: ECO, rev: REV, fw: FW, fw_new: fwNew, led: ledStatus() }; }
 function send(powerW) {
   if (busy || queue.length === 0) return;
   busy = true;
@@ -279,10 +279,10 @@ function tick() {
   let m = nextMin(); elapsed += m;
   Timer.set(m * 60 * 1000, false, tick);
 }
-// --- Update-Sperre: neuer Code wird nur geholt, wenn der Kunde es am Geraet bestaetigt hat (3x schnell die Taste, im Zeitfenster von ablesio) ---
+// --- Update-Sperre: neuer Code wird nur geholt, wenn der Kunde es am Geraet bestaetigt hat (einmal die Taste druecken, im Zeitfenster von ablesio) ---
 // Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste steht dauerhaft auf "momentary" (Attached) und schaltet das Relais; gezaehlt wird nur im Freigabe-Fenster.
 const UPD_PROBE = 3;   // Kennung fuer den Update-Test (nur KVS-Fassung)
-let POLLM = false; let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
+let POLLM = false; let GATE = { c: 0, on: 0, n: 0, ev: "" }; let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
 function cfUi() { return (LED.ui === "PLUGS_UI" || LED.ui === "PLUGUK_UI") ? LED.ui : ""; }
 function cfEnd() {
   if (!CF.on) return;
@@ -295,24 +295,26 @@ function cfEnd() {
 function cfStart(c) {
   let sec = (c && typeof c.sec === "number") ? c.sec : 0;
   if (CF.on || CF.ok || !UPD || cfUi() === "" || sec < 30 || sec > 1800) return;
-  print("ablesio: Update freigegeben, Taste 3x druecken (" + JSON.stringify(sec) + " s)");
+  print("ablesio: Update freigegeben, Taste einmal druecken (" + JSON.stringify(sec) + " s)");
   CF.on = true; CF.taps = [];
   ledXfer(true);
   CF.t = Timer.set(sec * 1000, false, function () { CF.t = null; cfEnd(); });
 }
 function cfTap(ts) {
   if (!CF.on) return;
-  CF.taps.push(ts); if (CF.taps.length > 3) CF.taps.splice(0, 1);
-  print("ablesio: Tastendruck " + JSON.stringify(CF.taps.length));
-  if (CF.taps.length === 3 && CF.taps[2] - CF.taps[0] <= 4) { CF.ok = true; cfEnd(); if (UPD) { selfUpdate(UPD); CF.ok = false; } }
+  print("ablesio: Tastendruck, Update startet");
+  CF.ok = true; cfEnd(); if (UPD) { selfUpdate(UPD); CF.ok = false; }
 }
 // Schaltvorgang am Relais zaehlen (Taste dauerhaft "momentary"): Status-Aenderung von switch:0, Zeit aus der Laufzeit des Geraets
 Shelly.addEventHandler(function (ev) {
-  if (!CF.on || !ev || ev.component !== "switch:0") return;
-  print("ablesio: Ereignis " + JSON.stringify(ev.info || ev.delta || ""));
-  if ((ev.delta && typeof ev.delta.output === "boolean") || (ev.info && ev.info.event === "toggle")) cfTap(Shelly.getUptimeMs() / 1000);
+  if (!ev || ev.component !== "switch:0") return;
+  let o = (ev.delta && typeof ev.delta.output === "boolean") ? ev.delta.output : ((ev.info && typeof ev.info.output === "boolean") ? ev.info.output : null);
+  GATE.ev = JSON.stringify(ev).slice(0, 90); GATE.on = CF.on ? 1 : 0;
+  if (!CF.on) return;
+  print("ablesio: Ereignis " + GATE.ev);
+  if (o !== null || (ev.info && ev.info.event === "toggle")) { GATE.n++; cfTap(Shelly.getUptimeMs() / 1000); }
 });
-function updGate(info, conf) { UPD = info; cfStart(conf); }
+function updGate(info, conf) { UPD = info; GATE.c = (conf && typeof conf.sec === "number") ? conf.sec : 0; cfStart(conf); }
 // --- Konfiguration aus dem Geraetespeicher (KVS): ablesio_url = Melde-Link, ablesio_prod = "1" bei Erzeugung. Fehlt der Link, wird nicht gemessen. ---
 function cfgLoad() {
   rpc("KVS.Get", { key: "ablesio_url" }, function (r, e) {
