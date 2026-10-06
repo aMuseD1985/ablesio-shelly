@@ -4,7 +4,7 @@
 // Kein Cloud-Konto noetig. In der Shelly-Weboberflaeche: Scripts -> Create script -> einfuegen -> Save -> Start, "Run on startup" aktivieren.
 let PRODUCTION = false;                                              // aus dem Geraetespeicher (ablesio_prod)
 let CONFIG = { url: "", everyMin: 15, bufferMax: 96, batch: 48 };
-const REV = "eff8ba63c3";                                                // Script-Version (fuer Fern-Updates)
+const REV = "fc88d4b1ad";                                                // Script-Version (fuer Fern-Updates)
 let queue = [];
 let busy = false;
 let DEVICE = null;                                                   // Shelly-ID, Modell, MAC - bindet das Geraet an den Zaehler
@@ -187,7 +187,7 @@ function onReply(body) {
   apCheck(r);
   if (r.eco) { ecoCfg = r.eco; ecoRule(true); }
   if (r.fast_start === false) fastStart = false;
-  POLLM = r.poll === 1;
+  POLLM = (typeof r.poll === "number" && r.poll > 0 && r.poll < 16) ? r.poll : 0;
   reps++;
   if (r.fw) { fwCfg = r.fw; fwRule(); }
   if (r.name) nameRule(r.name);
@@ -270,25 +270,25 @@ if (typeof Shelly.getCurrentScriptId === "function") {
 }
 
 function nextMin() {
-  if (POLLM) return 1;
+  if (POLLM) return POLLM;
   if (fastStart) { for (let i = 0; i < PACE.length; i++) { if (elapsed < PACE[i][0]) return PACE[i][1]; } }
   return CONFIG.everyMin;
 }
 function tick() {
   measure();
   let m = nextMin(); elapsed += m;
-  Timer.set(m * 60 * 1000, false, tick);
+  Timer.set(m * 60 * 1000 + jit(m), false, tick);
 }
 // --- Update-Sperre: neuer Code wird nur geholt, wenn der Kunde es am Geraet bestaetigt hat (einmal die Taste druecken, im Zeitfenster von ablesio) ---
 // Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste steht dauerhaft auf "momentary" (Attached) und schaltet das Relais; gezaehlt wird nur im Freigabe-Fenster.
 const UPD_PROBE = 8;   // Kennung fuer den Update-Test (nur KVS-Fassung)
+function jit(m) { let r = 0; try { r = Math.random() - 0.5; } catch (x) { r = 0; } return m < 5 ? 0 : Math.floor(r * 60000); }   // Meldezeit je Runde um bis zu +-30 s streuen (nur bei langem Takt), damit nicht alle Stecker zur selben Sekunde melden
 let POLLM = false; let GATE = { c: 0, on: 0, n: 0, ev: "" }; let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
 function cfUi() { return (LED.ui === "PLUGS_UI" || LED.ui === "PLUGUK_UI") ? LED.ui : ""; }
 function cfEnd() {
   if (!CF.on) return;
   CF.on = false; CF.taps = [];
   if (CF.t !== null) { Timer.clear(CF.t); CF.t = null; }
-  print("ablesio: Update-Fenster zu");
   ledXfer(false);
   rpc("Switch.Set", { id: 0, on: true }, function () {});
 }
@@ -302,7 +302,6 @@ function cfStart(c) {
 }
 function cfTap(ts) {
   if (!CF.on) return;
-  print("ablesio: Tastendruck, Update startet");
   CF.ok = true; cfEnd(); if (UPD) { selfUpdate(UPD); CF.ok = false; }
 }
 // Schaltvorgang am Relais zaehlen (Taste dauerhaft "momentary"): Status-Aenderung von switch:0, Zeit aus der Laufzeit des Geraets
@@ -311,7 +310,6 @@ Shelly.addEventHandler(function (ev) {
   let o = (ev.delta && typeof ev.delta.output === "boolean") ? ev.delta.output : ((ev.info && typeof ev.info.output === "boolean") ? ev.info.output : null);
   GATE.ev = JSON.stringify(ev).slice(0, 90); GATE.on = CF.on ? 1 : 0;
   if (!CF.on) return;
-  print("ablesio: Ereignis " + GATE.ev);
   if (o !== null || (ev.info && ev.info.event === "toggle")) { GATE.n++; cfTap(Shelly.getUptimeMs() / 1000); }
 });
 function updGate(info, conf) { UPD = info; GATE.c = (conf && typeof conf.sec === "number") ? conf.sec : 0; cfStart(conf); }
@@ -325,6 +323,15 @@ function cfgLoad() {
   });
 }
 cfgLoad();
+// --- Ring nicht lila haengen lassen: lila gilt nur waehrend Update-Fenster, Update oder groesserer Uebertragung. Alle 60 s abgleichen; nach einem Neustart ein von der Vorversion hinterlassenes Lila (Farbe 70/0/100) zuruecksetzen. ---
+Timer.set(60000, true, function () { if (LED.xfer && !CF.on && !updBusy && queue.length <= 3) ledXfer(false); });
+Timer.set(25000, false, function () {
+  if (LED.told || !LED.ui) return;
+  rpc(LED.ui + ".GetConfig", {}, function (c, e) {
+    let k = (e === 0 && c && c.leds && c.leds.mode === "switch" && c.leds.colors) ? c.leds.colors[LED.ch] : null;
+    if (k && k.on && k.on.rgb && Math.round(k.on.rgb[0]) === 70 && Math.round(k.on.rgb[2]) === 100) ledSet(LED_RGB.idle, LED_DIM.idle, null);
+  });
+});
 // --- Freier Arbeitsspeicher (Matter bleibt wie vom Kunden eingestellt): alle 5 Minuten messen, steht als ram in der Meldung ---
 let RAM = 0;
 function ramRead() { rpc("Sys.GetStatus", {}, function (r) { if (r && typeof r.ram_free === "number") RAM = r.ram_free; }); }

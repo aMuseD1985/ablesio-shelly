@@ -4,6 +4,13 @@
 
 - **Taste dauerhaft auf `momentary` („Attached“):** Das Script stellt die Taste beim Start auf `momentary` (vorher `detached`) und wechselt im Update-Fenster nicht mehr. Drücke werden nur gezählt, solange ein Update freigegeben ist. Kehrseite: Ein Druck im Alltag schaltet das Relais um.
 
+## b22562edab – ablesio Build 2026-10-06.180
+
+- **Ring bleibt nicht lila hängen:** Alle 60 s wird ein Lila ohne Grund (kein Update-Fenster, kein Update, keine große Übertragung) zurückgesetzt. 25 s nach dem Start wird ein von der Vorversion hinterlassenes Lila zurückgesetzt.
+- **Meldung alle 5 Minuten, solange ein Update auf Freigabe wartet** (im Freigabe-Fenster jede Minute), sonst wie gehabt alle 15 Minuten. Der Server steuert das mit `poll` (Minutenzahl).
+- **Meldezeit gestreut:** Bei langem Takt wird jede Runde um bis zu ±30 s verschoben, damit nicht alle Stecker zur selben Sekunde melden (`Math.random`, abgesichert).
+- Konsolen-Ausgaben gekürzt (Platz).
+
 ## fa37bd0bf1 – ablesio Build 2026-10-06.179
 
 - **Matter bleibt wie vom Kunden eingestellt:** Das Script schaltet Matter nicht mehr ab.
