@@ -1,5 +1,9 @@
 # Änderungen am Shelly-Script
 
+## 26944a9e36 – ablesio Build 2026-10-06.172
+
+- **Update-Probe:** unbenutzte Kennung `UPD_PROBE` in der KVS-Fassung, damit ein Stecker mit der Vorversion `d4c2b43372` den kompletten Update-Weg (Freigabe in der App, dreimal schnell die Taste, Download in Teilen, Prüfsumme, zweites Script) durchlaufen kann. Funktion sonst unverändert.
+
 ## d4c2b43372 – ablesio Build 2026-10-06.162
 
 - **Kompaktere Gerätefassung** (11.231 statt 13.001 Bytes): Leerraum um Satzzeichen entfernt, Funktion unverändert (Token-genau gegen die bisherige Fassung geprüft). Schafft Platz für die Prüfsummen-Abfrage gegen `releases.txt`.

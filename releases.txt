@@ -4,3 +4,4 @@
 # Quelle der Wahrheit ist diese Datei im Haupt-Repo (shelly/releases.txt); sie wird nach jedem Merge mit `php scripts/shelly_publish.php <ablesio-shelly-Ordner>` ins öffentliche Repo kopiert.
 # Neue Zeile erzeugen: php scripts/shelly_release.php --line "Hinweis" >> shelly/releases.txt
 1d74a8b2cdb8e7b22bc1503b35d9579dea5bad218848ddaf364a22c37eb65d17  d4c2b43372  2026-10-06  Platzsparende Fassung (weniger Leerraum), Fernwartung wie bisher, 11231 Bytes
+bdc2380bf696deffa0dcb037e2d8f6201d6d96e973769ead443efb023c811eb3  26944a9e36  2026-10-06  Update-Probe: Kennung UPD_PROBE (nur KVS-Fassung), Freigabe-Knopf in der App, 11250 Bytes
