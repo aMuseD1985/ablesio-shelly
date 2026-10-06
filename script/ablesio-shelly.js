@@ -4,7 +4,7 @@
 // Kein Cloud-Konto noetig. In der Shelly-Weboberflaeche: Scripts -> Create script -> einfuegen -> Save -> Start, "Run on startup" aktivieren.
 let PRODUCTION = false;                                              // aus dem Geraetespeicher (ablesio_prod)
 let CONFIG = { url: "", everyMin: 15, bufferMax: 96, batch: 48 };
-const REV = "bb330b71a0";                                                // Script-Version (fuer Fern-Updates)
+const REV = "eff8ba63c3";                                                // Script-Version (fuer Fern-Updates)
 let queue = [];
 let busy = false;
 let DEVICE = null;                                                   // Shelly-ID, Modell, MAC - bindet das Geraet an den Zaehler
@@ -225,7 +225,7 @@ function nameRule(n) {
   rpc("Sys.SetConfig", { config: { device: { name: n } } }, function (r, e) { if (e === 0) NAME = n; });
 }
 function onFail() { failStreak++; if (failStreak >= 2) { ecoRule(false); ledApply(false); } }
-function status() { return { cfg: "kvs", gate: GATE, rssi: RSSI, eco: ECO, rev: REV, fw: FW, fw_new: fwNew, led: ledStatus() }; }
+function status() { return { cfg: "kvs", gate: GATE, ram: RAM, rssi: RSSI, eco: ECO, rev: REV, fw: FW, fw_new: fwNew, led: ledStatus() }; }
 function send(powerW) {
   if (busy || queue.length === 0) return;
   busy = true;
@@ -281,7 +281,7 @@ function tick() {
 }
 // --- Update-Sperre: neuer Code wird nur geholt, wenn der Kunde es am Geraet bestaetigt hat (einmal die Taste druecken, im Zeitfenster von ablesio) ---
 // Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste steht dauerhaft auf "momentary" (Attached) und schaltet das Relais; gezaehlt wird nur im Freigabe-Fenster.
-const UPD_PROBE = 7;   // Kennung fuer den Update-Test (nur KVS-Fassung)
+const UPD_PROBE = 8;   // Kennung fuer den Update-Test (nur KVS-Fassung)
 let POLLM = false; let GATE = { c: 0, on: 0, n: 0, ev: "" }; let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
 function cfUi() { return (LED.ui === "PLUGS_UI" || LED.ui === "PLUGUK_UI") ? LED.ui : ""; }
 function cfEnd() {
@@ -325,7 +325,7 @@ function cfgLoad() {
   });
 }
 cfgLoad();
-// --- Matter abschalten (frisst Arbeitsspeicher, wird nicht gebraucht): nur wenn es an ist, einmal, danach Neustart ---
-rpc("Matter.GetConfig", {}, function (c, e) {
-  if (e === 0 && c && c.enable === true) rpc("Matter.SetConfig", { config: { enable: false } }, function (r, e2) { if (e2 === 0 && r && r.restart_required) rpc("Shelly.Reboot", {}, function () {}); });
-});
+// --- Freier Arbeitsspeicher (Matter bleibt wie vom Kunden eingestellt): alle 5 Minuten messen, steht als ram in der Meldung ---
+let RAM = 0;
+function ramRead() { rpc("Sys.GetStatus", {}, function (r) { if (r && typeof r.ram_free === "number") RAM = r.ram_free; }); }
+ramRead(); Timer.set(300000, true, ramRead);

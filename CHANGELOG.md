@@ -4,6 +4,11 @@
 
 - **Taste dauerhaft auf `momentary` („Attached“):** Das Script stellt die Taste beim Start auf `momentary` (vorher `detached`) und wechselt im Update-Fenster nicht mehr. Drücke werden nur gezählt, solange ein Update freigegeben ist. Kehrseite: Ein Druck im Alltag schaltet das Relais um.
 
+## fa37bd0bf1 – ablesio Build 2026-10-06.179
+
+- **Matter bleibt wie vom Kunden eingestellt:** Das Script schaltet Matter nicht mehr ab.
+- **Freier Arbeitsspeicher:** Die Meldung enthält `ram` (alle 5 Minuten gemessen), damit sich ein Speicherengpass durch Matter erkennen lässt.
+
 ## cc48f9c9b9 – ablesio Build 2026-10-06.178
 
 - **Folge-Version für den Update-Test:** nur die Test-Kennung `UPD_PROBE` geändert (7 statt 3), Funktion sonst unverändert. Dient dazu, den Update-Weg (Freigabe in der App, Taste im Fenster, Download, Prüfsumme) auf einem Stecker mit `691859d795` zu prüfen.
