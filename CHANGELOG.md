@@ -1,5 +1,9 @@
 # Änderungen am Shelly-Script
 
+## 58e961b7ea – ablesio Build 2026-10-06.175
+
+- **Gegenprobe für den Update-Weg:** nur die Test-Kennung `UPD_PROBE` geändert (3 statt 2), Funktion sonst unverändert. Dient dazu, den Update-Weg (Freigabe in der App, dreimal Taste, Download, Prüfsumme) auf einem Stecker mit `4c4f1b9d62` zu prüfen.
+
 ## 4c4f1b9d62 – ablesio Build 2026-10-06.174
 
 - **Update-Sperre repariert und sichtbar:** Der Tastendruck wird jetzt über den Schaltwechsel des Relais erkannt (Laufzeit des Geräts). Während des Freigabe-Fensters leuchtet der LED-Ring lila, die Script-Konsole meldet jeden Schritt.
