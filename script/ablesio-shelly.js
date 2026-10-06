@@ -4,7 +4,7 @@
 // Kein Cloud-Konto noetig. In der Shelly-Weboberflaeche: Scripts -> Create script -> einfuegen -> Save -> Start, "Run on startup" aktivieren.
 let PRODUCTION = false;                                              // aus dem Geraetespeicher (ablesio_prod)
 let CONFIG = { url: "", everyMin: 15, bufferMax: 96, batch: 48 };
-const REV = "009871893f";                                                // Script-Version (fuer Fern-Updates)
+const REV = "236aae6675";                                                // Script-Version (fuer Fern-Updates)
 let queue = [];
 let busy = false;
 let DEVICE = null;                                                   // Shelly-ID, Modell, MAC - bindet das Geraet an den Zaehler
@@ -187,6 +187,7 @@ function onReply(body) {
   apCheck(r);
   if (r.eco) { ecoCfg = r.eco; ecoRule(true); }
   if (r.fast_start === false) fastStart = false;
+  POLLM = r.poll === 1;
   reps++;
   if (r.fw) { fwCfg = r.fw; fwRule(); }
   if (r.name) nameRule(r.name);
@@ -269,6 +270,7 @@ if (typeof Shelly.getCurrentScriptId === "function") {
 }
 
 function nextMin() {
+  if (POLLM) return 1;
   if (fastStart) { for (let i = 0; i < PACE.length; i++) { if (elapsed < PACE[i][0]) return PACE[i][1]; } }
   return CONFIG.everyMin;
 }
@@ -279,31 +281,39 @@ function tick() {
 }
 // --- Update-Sperre: neuer Code wird nur geholt, wenn der Kunde es am Geraet bestaetigt hat (3x schnell die Taste, im Zeitfenster von ablesio) ---
 // Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste ist sonst "detached" (schaltet nichts).
-const UPD_PROBE = 1;   // Kennung fuer den Update-Test (nur KVS-Fassung)
-let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
+const UPD_PROBE = 2;   // Kennung fuer den Update-Test (nur KVS-Fassung)
+let POLLM = false; let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
 function cfUi() { return (LED.ui === "PLUGS_UI" || LED.ui === "PLUGUK_UI") ? LED.ui : ""; }
-function cfMode(m) { let u = cfUi(); if (u) rpc(u + ".SetConfig", { config: { controls: { "switch:0": { in_mode: m } } } }, function () {}); }
+function cfMode(m) { let u = cfUi(); if (u) rpc(u + ".SetConfig", { config: { controls: { "switch:0": { in_mode: m } } } }, function (r, e, em) { print("ablesio: Taste " + m + " -> " + e + " " + (em || "")); }); }
 function cfEnd() {
   if (!CF.on) return;
   CF.on = false; CF.taps = [];
   if (CF.t !== null) { Timer.clear(CF.t); CF.t = null; }
+  print("ablesio: Update-Fenster zu");
+  ledXfer(false);
   cfMode("detached");
   rpc("Switch.Set", { id: 0, on: true }, function () {});
 }
 function cfStart(c) {
   let sec = (c && typeof c.sec === "number") ? c.sec : 0;
-  if (CF.on || CF.ok || !UPD || cfUi() === "" || sec < 30 || sec > 300) return;
+  if (CF.on || CF.ok || !UPD || cfUi() === "" || sec < 30 || sec > 1800) return;
+  print("ablesio: Update freigegeben, Taste 3x druecken (" + JSON.stringify(sec) + " s)");
   CF.on = true; CF.taps = [];
   cfMode("momentary");
+  ledXfer(true);
   CF.t = Timer.set(sec * 1000, false, function () { CF.t = null; cfEnd(); });
 }
 function cfTap(ts) {
   if (!CF.on) return;
   CF.taps.push(ts); if (CF.taps.length > 3) CF.taps.splice(0, 1);
-  if (CF.taps.length === 3 && CF.taps[2] - CF.taps[0] <= 3.5) { CF.ok = true; cfEnd(); if (UPD) { selfUpdate(UPD); CF.ok = false; } }
+  print("ablesio: Tastendruck " + JSON.stringify(CF.taps.length));
+  if (CF.taps.length === 3 && CF.taps[2] - CF.taps[0] <= 4) { CF.ok = true; cfEnd(); if (UPD) { selfUpdate(UPD); CF.ok = false; } }
 }
+// Schaltvorgang am Relais zaehlen (Taste im Modus "momentary"): Status-Aenderung von switch:0, Zeit aus der Laufzeit des Geraets
 Shelly.addEventHandler(function (ev) {
-  if (CF.on && ev && ev.component === "switch:0" && ev.info && ev.info.event === "toggle" && typeof ev.now === "number") cfTap(ev.now);
+  if (!CF.on || !ev || ev.component !== "switch:0") return;
+  print("ablesio: Ereignis " + JSON.stringify(ev.info || ev.delta || ""));
+  if ((ev.delta && typeof ev.delta.output === "boolean") || (ev.info && ev.info.event === "toggle")) cfTap(Shelly.getUptimeMs() / 1000);
 });
 function updGate(info, conf) { UPD = info; cfStart(conf); }
 // --- Konfiguration aus dem Geraetespeicher (KVS): ablesio_url = Melde-Link, ablesio_prod = "1" bei Erzeugung. Fehlt der Link, wird nicht gemessen. ---
