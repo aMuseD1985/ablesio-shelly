@@ -4,6 +4,11 @@
 
 - **Taste dauerhaft auf `momentary` („Attached“):** Das Script stellt die Taste beim Start auf `momentary` (vorher `detached`) und wechselt im Update-Fenster nicht mehr. Drücke werden nur gezählt, solange ein Update freigegeben ist. Kehrseite: Ein Druck im Alltag schaltet das Relais um.
 
+## c58343e6e4 – ablesio Build 2026-10-06.187
+
+- **Ringfarbe:** Die Farbliste wird bei jedem Schreiben frisch kopiert (Verdacht: das gemeinsame Array für „an“ und „aus“ wird vom Gerät abgelehnt, Fehler `Missing or bad argument 'config'`). Bei einem Fehler meldet das Script die gesendete Einstellung als `led.p` (und `led.err`) in der Meldung.
+- Konsolen-/Diagnosefeld `gate.ev` entfernt (Platz).
+
 ## be75c15a37 – ablesio Build 2026-10-06.185
 
 - **Ring immer mit voller Helligkeit** (100 statt 25–90), in allen Fassungen.
