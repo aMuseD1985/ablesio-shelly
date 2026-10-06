@@ -1,3 +1,6 @@
 # ablesio-shelly – freigegebene Script-Versionen
 # Format (eine Zeile je Version):  <sha256 der kompakten Gerätefassung>  <version>  <JJJJ-MM-TT>  <hinweis>
-# Noch leer: Einträge erst, wenn der Melde-Link im Gerätespeicher (KVS) liegt und alle Stecker identischen Code haben.
+# Älteste zuerst, neue Version ANHÄNGEN, alte Zeilen nicht löschen.
+# Quelle der Wahrheit ist diese Datei im Haupt-Repo (shelly/releases.txt); sie wird nach jedem Merge mit `php scripts/shelly_publish.php <ablesio-shelly-Ordner>` ins öffentliche Repo kopiert.
+# Neue Zeile erzeugen: php scripts/shelly_release.php --line "Hinweis" >> shelly/releases.txt
+1d74a8b2cdb8e7b22bc1503b35d9579dea5bad218848ddaf364a22c37eb65d17  d4c2b43372  2026-10-06  Platzsparende Fassung (weniger Leerraum), Fernwartung wie bisher, 11231 Bytes

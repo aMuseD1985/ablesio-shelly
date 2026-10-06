@@ -2,8 +2,9 @@
 // Misst alle 15 Minuten den Zaehlerstand, puffert bei Ausfall bis zu 96 Werte und meldet sie gesammelt an ablesio.
 // Meldet WLAN-Signal und Eco-Modus mit, folgt den Vorgaben von ablesio (Access Point, Eco-Modus) und aktualisiert sich selbst (Fernwartung).
 // Kein Cloud-Konto noetig. In der Shelly-Weboberflaeche: Scripts -> Create script -> einfuegen -> Save -> Start, "Run on startup" aktivieren.
-let CONFIG = { url: "https://ablesio.de/api/plug/DEIN-MELDE-LINK", everyMin: 15, bufferMax: 96, batch: 48 };
-const REV = "__REV__";                                                // Script-Version (fuer Fern-Updates)
+let PRODUCTION = false;                                              // aus dem Geraetespeicher (ablesio_prod)
+let CONFIG = { url: "", everyMin: 15, bufferMax: 96, batch: 48 };
+const REV = "b3cc28d2d6";                                                // Script-Version (fuer Fern-Updates)
 let queue = [];
 let busy = false;
 let DEVICE = null;                                                   // Shelly-ID, Modell, MAC - bindet das Geraet an den Zaehler
@@ -30,11 +31,11 @@ function rpcNext() {
 }
 rpc("Shelly.GetDeviceInfo", {}, function (di) { if (di) { DEVICE = { id: di.id, model: di.model, mac: di.mac }; FW = di.ver || null; } });
 rpc("Sys.GetConfig", {}, function (c) { if (c && c.device) { ECO = c.device.eco_mode === true; NAME = c.device.name || ""; } });
-// --- Licht (LED-Ring der Plugs): orange = meldet an ablesio, blau = misst gerade, gruen = fertig, bitte umstecken, rot = keine Verbindung ---
-// Jede Farbaenderung ist eine Konfig-Schreibung im Flash: darum nur bei Zustandswechsel und kurzem Aufblitzen je Meldung, mit Tageslimit.
-let LED = { ui: null, ch: "switch:0", mode: "status", flash: true, state: "idle", shown: "", max: 300, writes: 0, day: -1, busy: false, told: false };
-const LED_RGB = { idle: [100, 45, 0], measure: [0, 35, 100], move: [0, 100, 25], error: [100, 0, 0] };
-const LED_DIM = { idle: 25, measure: 30, move: 90, error: 60 };
+// --- Licht (LED-Ring der Plugs): orange = meldet an ablesio, blau = misst gerade, gruen = fertig, bitte umstecken, lila = groessere Uebertragung (Puffer nach Ausfall, Script-Update), rot = keine Verbindung ---
+// Jede Farbaenderung ist eine Konfig-Schreibung im Flash: darum nur bei Zustandswechsel (kein Blinken/Aufblitzen), mit Tageslimit.
+let LED = { ui: null, ch: "switch:0", mode: "status", xfer: false, state: "idle", shown: "", max: 300, writes: 0, day: -1, busy: false, told: false };
+const LED_RGB = { idle: [100, 45, 0], measure: [0, 35, 100], move: [0, 100, 25], send: [70, 0, 100], error: [100, 0, 0] };
+const LED_DIM = { idle: 25, measure: 30, move: 90, send: 60, error: 60 };
 function ledProbe(i) {
   let n = ["PLUGS_UI", "PLUGUK_UI", "PLUGPM_UI"];
   if (i >= n.length) { LED.ui = ""; return; }                           // Geraet ohne LED-Ring (z. B. PM Mini, Plus PM)
@@ -66,7 +67,8 @@ function ledSet(rgb, bri, cb) {
   LED.writes++;
   rpc(LED.ui + ".SetConfig", { config: { leds: { mode: "switch", colors: col } } }, function () { if (cb) cb(); });
 }
-function ledWant() { return failStreak >= 2 ? "error" : LED.state; }
+function ledWant() { return failStreak >= 2 ? "error" : (LED.xfer ? "send" : LED.state); }
+function ledXfer(on) { if (LED.xfer === on) return; LED.xfer = on; ledApply(false); }   // lila nur bei groesseren Uebertragungen
 function ledApply(force) {
   if (!LED.ui || LED.busy || !LED.told) return;
   let key = LED.mode === "status" ? "s:" + ledWant() : LED.mode;
@@ -77,33 +79,19 @@ function ledApply(force) {
   LED.writes++;
   rpc(LED.ui + ".SetConfig", { config: { leds: { mode: LED.mode === "shelly" ? "power" : "off" } } }, function () {});
 }
-function ledFlash(times) {
-  if (!LED.ui || LED.mode !== "status" || !LED.flash || LED.busy || !LED.told) return;
-  if (!ledCan(times * 2)) return;
-  let s = ledWant(); let n = 0; LED.busy = true;
-  let step = function () {
-    if (n >= times * 2) { LED.busy = false; return; }
-    let hi = n % 2 === 0; n++;
-    ledSet(LED_RGB[s], hi ? 100 : LED_DIM[s], function () { Timer.set(hi ? 350 : 250, false, step); });
-  };
-  step();
-}
 function ledReply(c) {
   if (!c) return;
   LED.told = true;                                                      // erst auf Vorgabe von ablesio hin etwas am Licht aendern
   if (c.mode === "status" || c.mode === "shelly" || c.mode === "off") LED.mode = c.mode;
-  if (typeof c.flash === "boolean") LED.flash = c.flash;
   if (c.state === "idle" || c.state === "measure" || c.state === "move") LED.state = c.state;
   if (typeof c.max === "number" && c.max >= 0 && c.max <= 2000) LED.max = c.max;
   ledApply(false);
-  ledFlash(LED.state === "move" ? 3 : 1);                               // gruen: Blinkfolge = bitte umstecken
 }
 function ledStatus() { return { ui: LED.ui, state: LED.mode === "status" ? ledWant() : LED.mode, writes: LED.writes }; }
 ledProbe(0);
 
 function readEnergy(cb) {
 // ERZEUGUNG (Balkonkraftwerk am Stecker): zaehlt das Geraet Rueckspeisung getrennt (ret_aenergy), wird diese genommen - sonst der normale Zaehler.
-const PRODUCTION = false;
 function pick(x) { return (PRODUCTION && x.ret_aenergy && x.ret_aenergy.total > 0) ? x.ret_aenergy.total : x.aenergy.total; }
   rpc("Switch.GetStatus", { id: 0 }, function (st) {
     if (st && st.aenergy) { cb(pick(st), Math.abs(st.apower)); return; }
@@ -132,7 +120,8 @@ function csum(s, h) { for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charC
 function selfUpdate(info) {
   if (updBusy || updTried === info.rev || typeof Shelly.getCurrentScriptId !== "function") return;
   updBusy = true; updTried = info.rev;                                // jede Version hoechstens einmal versuchen (auch nach Erfolg)
-  let fail = function (id) { updBusy = false; if (id !== null) rpc("Script.Delete", { id: id }, function () {}); };
+  ledXfer(true);
+  let fail = function (id) { updBusy = false; ledXfer(false); if (id !== null) rpc("Script.Delete", { id: id }, function () {}); };
   let me = Shelly.getCurrentScriptId();
   rpc("Script.List", {}, function (l) {                       // Reste eines frueheren Versuchs entfernen
     if (l && l.scripts) for (let i = 0; i < l.scripts.length; i++) { if (l.scripts[i].name === "ablesio-neu" && l.scripts[i].id !== me) rpc("Script.Delete", { id: l.scripts[i].id }, function () {}); }
@@ -147,7 +136,7 @@ function createNew(info, fail) {
       if (part >= info.parts) {
         if (h !== info.sum) { fail(id); return; }
         rpc("Script.SetConfig", { id: id, config: { enable: true } }, function () {
-          rpc("Script.Start", { id: id }, function (r, e2) { if (e2 !== 0) fail(id); else updBusy = false; });
+          rpc("Script.Start", { id: id }, function (r, e2) { if (e2 !== 0) fail(id); else { updBusy = false; ledXfer(false); } });
         });
         return;
       }
@@ -204,7 +193,7 @@ function onReply(body) {
   if (r.led) ledReply(r.led);
   if (r.script && r.script.rev) {
     if (r.script.rev === REV) cleanupOld();
-    else if (r.script.auto === true && r.script.parts > 0) selfUpdate(r.script);
+    else if (r.script.auto === true && r.script.parts > 0) updGate(r.script, r.confirm);
   }
 }
 // --- Firmware: regelmaessig nach einer stabilen neuen Version fragen, aktualisieren nur im Nachtfenster (einmal je Start) ---
@@ -235,11 +224,12 @@ function nameRule(n) {
   rpc("Sys.SetConfig", { config: { device: { name: n } } }, function (r, e) { if (e === 0) NAME = n; });
 }
 function onFail() { failStreak++; if (failStreak >= 2) { ecoRule(false); ledApply(false); } }
-function status() { return { rssi: RSSI, eco: ECO, rev: REV, fw: FW, fw_new: fwNew, led: ledStatus() }; }
+function status() { return { cfg: "kvs", rssi: RSSI, eco: ECO, rev: REV, fw: FW, fw_new: fwNew, led: ledStatus() }; }
 function send(powerW) {
   if (busy || queue.length === 0) return;
   busy = true;
   let batch = queue.slice(0, CONFIG.batch);
+  if (queue.length > 3) ledXfer(true);                                // Puffer nach einem Ausfall wird nachgereicht
   rpc("HTTP.POST", {
     url: CONFIG.url,
     body: JSON.stringify({ readings: batch, power_w: powerW, script: 3, device: DEVICE, health: status() }),
@@ -249,9 +239,10 @@ function send(powerW) {
     busy = false;
     if (errCode === 0 && res && res.code === 200) {
       queue.splice(0, batch.length);                                 // gemeldet - aus dem Puffer nehmen
+      if (queue.length <= 3) ledXfer(false);
       onReply(res.body);
       if (queue.length > 0) send(powerW);
-    } else onFail();                                                 // bleibt im Puffer, naechster Versuch beim naechsten Messen
+    } else { ledXfer(false); onFail(); }                                                 // bleibt im Puffer, naechster Versuch beim naechsten Messen
   });
 }
 
@@ -286,4 +277,45 @@ function tick() {
   let m = nextMin(); elapsed += m;
   Timer.set(m * 60 * 1000, false, tick);
 }
-tick();
+// --- Update-Sperre: neuer Code wird nur geholt, wenn der Kunde es am Geraet bestaetigt hat (3x schnell die Taste, im Zeitfenster von ablesio) ---
+// Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste ist sonst "detached" (schaltet nichts).
+let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
+function cfUi() { return (LED.ui === "PLUGS_UI" || LED.ui === "PLUGUK_UI") ? LED.ui : ""; }
+function cfMode(m) { let u = cfUi(); if (u) rpc(u + ".SetConfig", { config: { controls: { "switch:0": { in_mode: m } } } }, function () {}); }
+function cfEnd() {
+  if (!CF.on) return;
+  CF.on = false; CF.taps = [];
+  if (CF.t !== null) { Timer.clear(CF.t); CF.t = null; }
+  cfMode("detached");
+  rpc("Switch.Set", { id: 0, on: true }, function () {});
+}
+function cfStart(c) {
+  let sec = (c && typeof c.sec === "number") ? c.sec : 0;
+  if (CF.on || CF.ok || !UPD || cfUi() === "" || sec < 30 || sec > 300) return;
+  CF.on = true; CF.taps = [];
+  cfMode("momentary");
+  CF.t = Timer.set(sec * 1000, false, function () { CF.t = null; cfEnd(); });
+}
+function cfTap(ts) {
+  if (!CF.on) return;
+  CF.taps.push(ts); if (CF.taps.length > 3) CF.taps.splice(0, 1);
+  if (CF.taps.length === 3 && CF.taps[2] - CF.taps[0] <= 3.5) { CF.ok = true; cfEnd(); if (UPD) { selfUpdate(UPD); CF.ok = false; } }
+}
+Shelly.addEventHandler(function (ev) {
+  if (CF.on && ev && ev.component === "switch:0" && ev.info && ev.info.event === "toggle" && typeof ev.now === "number") cfTap(ev.now);
+});
+function updGate(info, conf) { UPD = info; cfStart(conf); }
+// --- Konfiguration aus dem Geraetespeicher (KVS): ablesio_url = Melde-Link, ablesio_prod = "1" bei Erzeugung. Fehlt der Link, wird nicht gemessen. ---
+function cfgLoad() {
+  rpc("KVS.Get", { key: "ablesio_url" }, function (r, e) {
+    if (e === 0 && r && typeof r.value === "string" && r.value.indexOf("https://") === 0) {
+      CONFIG.url = r.value;
+      rpc("KVS.Get", { key: "ablesio_prod" }, function (p, e2) { PRODUCTION = (e2 === 0 && p && p.value === "1"); tick(); });
+    } else { print("ablesio: Melde-Link fehlt im Geraetespeicher (KVS ablesio_url)"); Timer.set(60000, false, cfgLoad); }
+  });
+}
+cfgLoad();
+// --- Matter abschalten (frisst Arbeitsspeicher, wird nicht gebraucht): nur wenn es an ist, einmal, danach Neustart ---
+rpc("Matter.GetConfig", {}, function (c, e) {
+  if (e === 0 && c && c.enable === true) rpc("Matter.SetConfig", { config: { enable: false } }, function (r, e2) { if (e2 === 0 && r && r.restart_required) rpc("Shelly.Reboot", {}, function () {}); });
+});

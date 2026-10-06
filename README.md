@@ -23,7 +23,7 @@ Hier steht **nichts Geheimes** – nur Prüfsummen und Klartext-Code.
 
 ## Stand
 
-**Vorbereitet, noch nicht aktiv.** Heute enthält jedes Script den Melde-Link seines Steckers, dadurch unterscheidet sich der Code je Gerät. Bevor die Prüfung scharf geschaltet wird, wandert der Melde-Link in den Gerätespeicher (Shelly-KVS) – dann laufen alle Stecker mit identischem Code, und es gibt genau **eine Prüfsumme je Version**.
+**Vorbereitet, noch nicht aktiv** (die Liste wird bei jeder Script-Änderung mitgepflegt, die Prüfung im Script selbst folgt). Heute enthält jedes Script den Melde-Link seines Steckers, dadurch unterscheidet sich der Code je Gerät. Bevor die Prüfung scharf geschaltet wird, wandert der Melde-Link in den Gerätespeicher (Shelly-KVS) – dann laufen alle Stecker mit identischem Code, und es gibt genau **eine Prüfsumme je Version**.
 
 ## Sicherheit dieses Repositorys
 
