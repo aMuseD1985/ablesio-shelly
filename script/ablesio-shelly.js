@@ -4,7 +4,7 @@
 // Kein Cloud-Konto noetig. In der Shelly-Weboberflaeche: Scripts -> Create script -> einfuegen -> Save -> Start, "Run on startup" aktivieren.
 let PRODUCTION = false;                                              // aus dem Geraetespeicher (ablesio_prod)
 let CONFIG = { url: "", everyMin: 15, bufferMax: 96, batch: 48 };
-const REV = "c72a3dbb5e";                                                // Script-Version (fuer Fern-Updates)
+const REV = "b87d7bc230";                                                // Script-Version (fuer Fern-Updates)
 let queue = [];
 let busy = false;
 let DEVICE = null;                                                   // Shelly-ID, Modell, MAC - bindet das Geraet an den Zaehler
@@ -48,7 +48,7 @@ function ledProbe(i) {
 function plugGuard(c) {
   if (LED.ui !== "PLUGS_UI" && LED.ui !== "PLUGUK_UI") return;
   let ctl = c && c.controls && c.controls["switch:0"];
-  if (ctl && ctl.in_mode !== "detached") rpc(LED.ui + ".SetConfig", { config: { controls: { "switch:0": { in_mode: "detached" } } } }, function () {});
+  if (ctl && ctl.in_mode !== "momentary") rpc(LED.ui + ".SetConfig", { config: { controls: { "switch:0": { in_mode: "momentary" } } } }, function () {});
   rpc("Switch.GetConfig", { id: 0 }, function (sc, e) {
     if (e === 0 && sc && sc.initial_state !== "on") rpc("Switch.SetConfig", { id: 0, config: { initial_state: "on" } }, function () {});
   });
@@ -280,18 +280,16 @@ function tick() {
   Timer.set(m * 60 * 1000, false, tick);
 }
 // --- Update-Sperre: neuer Code wird nur geholt, wenn der Kunde es am Geraet bestaetigt hat (3x schnell die Taste, im Zeitfenster von ablesio) ---
-// Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste ist sonst "detached" (schaltet nichts).
+// Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste steht dauerhaft auf "momentary" (Attached) und schaltet das Relais; gezaehlt wird nur im Freigabe-Fenster.
 const UPD_PROBE = 3;   // Kennung fuer den Update-Test (nur KVS-Fassung)
 let POLLM = false; let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
 function cfUi() { return (LED.ui === "PLUGS_UI" || LED.ui === "PLUGUK_UI") ? LED.ui : ""; }
-function cfMode(m) { let u = cfUi(); if (u) rpc(u + ".SetConfig", { config: { controls: { "switch:0": { in_mode: m } } } }, function (r, e, em) { print("ablesio: Taste " + m + " -> " + e + " " + (em || "")); }); }
 function cfEnd() {
   if (!CF.on) return;
   CF.on = false; CF.taps = [];
   if (CF.t !== null) { Timer.clear(CF.t); CF.t = null; }
   print("ablesio: Update-Fenster zu");
   ledXfer(false);
-  cfMode("detached");
   rpc("Switch.Set", { id: 0, on: true }, function () {});
 }
 function cfStart(c) {
@@ -299,7 +297,6 @@ function cfStart(c) {
   if (CF.on || CF.ok || !UPD || cfUi() === "" || sec < 30 || sec > 1800) return;
   print("ablesio: Update freigegeben, Taste 3x druecken (" + JSON.stringify(sec) + " s)");
   CF.on = true; CF.taps = [];
-  cfMode("momentary");
   ledXfer(true);
   CF.t = Timer.set(sec * 1000, false, function () { CF.t = null; cfEnd(); });
 }
@@ -309,7 +306,7 @@ function cfTap(ts) {
   print("ablesio: Tastendruck " + JSON.stringify(CF.taps.length));
   if (CF.taps.length === 3 && CF.taps[2] - CF.taps[0] <= 4) { CF.ok = true; cfEnd(); if (UPD) { selfUpdate(UPD); CF.ok = false; } }
 }
-// Schaltvorgang am Relais zaehlen (Taste im Modus "momentary"): Status-Aenderung von switch:0, Zeit aus der Laufzeit des Geraets
+// Schaltvorgang am Relais zaehlen (Taste dauerhaft "momentary"): Status-Aenderung von switch:0, Zeit aus der Laufzeit des Geraets
 Shelly.addEventHandler(function (ev) {
   if (!CF.on || !ev || ev.component !== "switch:0") return;
   print("ablesio: Ereignis " + JSON.stringify(ev.info || ev.delta || ""));

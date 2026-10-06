@@ -1,5 +1,9 @@
 # Änderungen am Shelly-Script
 
+## e013b76372 – ablesio Build 2026-10-06.176
+
+- **Taste dauerhaft auf `momentary` („Attached“):** Das Script stellt die Taste beim Start auf `momentary` (vorher `detached`) und wechselt im Update-Fenster nicht mehr. Drücke werden nur gezählt, solange ein Update freigegeben ist. Kehrseite: Ein Druck im Alltag schaltet das Relais um.
+
 ## 58e961b7ea – ablesio Build 2026-10-06.175
 
 - **Gegenprobe für den Update-Weg:** nur die Test-Kennung `UPD_PROBE` geändert (3 statt 2), Funktion sonst unverändert. Dient dazu, den Update-Weg (Freigabe in der App, dreimal Taste, Download, Prüfsumme) auf einem Stecker mit `4c4f1b9d62` zu prüfen.
