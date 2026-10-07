@@ -14,3 +14,4 @@ ab8d57b76e085f180f5e26e8b69da35b4ea5c2eba3591968fdba654a7423672e  fa37bd0bf1  20
 faac5d387aa43d9263077c5cde5ed7035bf8d55e9052a92b87242b6f63506faf  b22562edab  2026-10-06  Lila-Absicherung, Meldung alle 5 Min solange ein Update wartet, Meldezeit um +-30 s gestreut, 12029 Bytes
 0b6502067bd3e3ddd3ab72cd7a0505d71352f2c6109a5a5821aaa15038565ee7  be75c15a37  2026-10-06  Ring: Helligkeit immer 100, Schreibfehler merken und wiederholen (led.err), Abgleich Soll/Ist alle 10 Min (Lila-Reste), 12339 Bytes
 572569a49c60761fd3371335a51007f1572b15720e99ed80f8b00cd0f902e9c6  c58343e6e4  2026-10-06  Ringfarbe mit frischen Arrays und Fehlerausgabe samt Nutzlast (led.p), Platz gespart, 12395 Bytes
+23cc2bae91abbd5e4b4873de70bf0b83ccf7d56da384a57db1117e0d29392057  4c225f129a  2026-10-07  Nur noch 3 Timer (ein 60-s-Haushaltstakt statt 6): behebt 'Too many running timers' und den lila Ring, 12348 Bytes

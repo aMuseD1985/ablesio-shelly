@@ -62,3 +62,7 @@
 - **Licht-Indikation** am LED-Ring (orange meldet, blau misst, grün umstecken, rot keine Verbindung), Aufblitzen je Meldung, Tageslimit gegen Flash-Verschleiß.
 - **Immer an**: Plugs mit Schalter schalten nach dem Einstecken ein, Taste schaltet nicht aus (nur Plugs, nie Einbau-Module).
 - Schnellstart, Puffer bei Ausfall, Eco-Modus, WLAN-Signal, Firmware-Hinweis, Fernwartung (Selbst-Update in Stücken mit Prüfsumme).
+
+## 4c225f129a – ablesio Build 2026-10-07.211
+
+- **Nur noch drei Timer:** Meldetakt plus ein 60-s-Haushaltstakt statt sechs Timern. Behebt „Too many running timers“ (Script stoppte beim Öffnen des Update-Fensters) und den dauerhaft lila Ring.

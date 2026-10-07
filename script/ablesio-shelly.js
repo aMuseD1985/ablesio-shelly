@@ -4,7 +4,7 @@
 // Kein Cloud-Konto noetig. In der Shelly-Weboberflaeche: Scripts -> Create script -> einfuegen -> Save -> Start, "Run on startup" aktivieren.
 let PRODUCTION = false;                                              // aus dem Geraetespeicher (ablesio_prod)
 let CONFIG = { url: "", everyMin: 15, bufferMax: 96, batch: 48 };
-const REV = "40524a8889";                                                // Script-Version (fuer Fern-Updates)
+const REV = "f9d314ac55";                                                // Script-Version (fuer Fern-Updates)
 let queue = [];
 let busy = false;
 let DEVICE = null;                                                   // Shelly-ID, Modell, MAC - bindet das Geraet an den Zaehler
@@ -283,12 +283,11 @@ function tick() {
 // Die Sperre liegt nur im Arbeitsspeicher: nach jedem Neustart ist sie zu, der Server kann sie nicht oeffnen. Die Taste steht dauerhaft auf "momentary" (Attached) und schaltet das Relais; gezaehlt wird nur im Freigabe-Fenster.
 const UPD_PROBE = 10;   // Kennung fuer den Update-Test (nur KVS-Fassung)
 function jit(m) { let r = 0; try { r = Math.random() - 0.5; } catch (x) { r = 0; } return m < 5 ? 0 : Math.floor(r * 60000); }   // Meldezeit je Runde um bis zu +-30 s streuen (nur bei langem Takt), damit nicht alle Stecker zur selben Sekunde melden
-let POLLM = false; let GATE = { c: 0, on: 0, n: 0 }; let UPD = null; let CF = { on: false, ok: false, taps: [], t: null };
+let POLLM = false; let GATE = { c: 0, on: 0, n: 0 }; let UPD = null; let CF = { on: false, ok: false, taps: [], until: 0 };   // Shelly erlaubt nur wenige Timer gleichzeitig: Fenster-Ende wird vom 60-s-Takt hk() geprueft, kein eigener Timer
 function cfUi() { return (LED.ui === "PLUGS_UI" || LED.ui === "PLUGUK_UI") ? LED.ui : ""; }
 function cfEnd() {
   if (!CF.on) return;
   CF.on = false; CF.taps = [];
-  if (CF.t !== null) { Timer.clear(CF.t); CF.t = null; }
   ledXfer(false);
   rpc("Switch.Set", { id: 0, on: true }, function () {});
 }
@@ -296,9 +295,8 @@ function cfStart(c) {
   let sec = (c && typeof c.sec === "number") ? c.sec : 0;
   if (CF.on || CF.ok || !UPD || cfUi() === "" || sec < 30 || sec > 1800) return;
   print("ablesio: Update freigegeben, Taste einmal druecken (" + JSON.stringify(sec) + " s)");
-  CF.on = true; CF.taps = [];
+  CF.on = true; CF.taps = []; CF.until = Shelly.getUptimeMs() + sec * 1000;
   ledXfer(true);
-  CF.t = Timer.set(sec * 1000, false, function () { CF.t = null; cfEnd(); });
 }
 function cfTap(ts) {
   if (!CF.on) return;
@@ -319,13 +317,12 @@ function cfgLoad() {
     if (e === 0 && r && typeof r.value === "string" && r.value.indexOf("https://") === 0) {
       CONFIG.url = r.value;
       rpc("KVS.Get", { key: "ablesio_prod" }, function (p, e2) { PRODUCTION = (e2 === 0 && p && p.value === "1"); tick(); });
-    } else { print("ablesio: Melde-Link fehlt im Geraetespeicher (KVS ablesio_url)"); Timer.set(60000, false, cfgLoad); }
+    } else { print("ablesio: Melde-Link fehlt im Geraetespeicher (KVS ablesio_url)"); CF_RETRY = 1; }
   });
 }
 cfgLoad();
-// --- Ring nicht lila haengen lassen: lila gilt nur waehrend Update-Fenster, Update oder groesserer Uebertragung. Alle 60 s abgleichen. ---
-Timer.set(60000, true, function () { if (LED.xfer && !CF.on && !updBusy && queue.length <= 3) ledXfer(false); });
-function ledErr(m, pp) { LED.err = String(m).slice(0, 60); LED.p = JSON.stringify(pp).slice(0, 150); LED.shown = ""; if (!LED.rt) { LED.rt = 1; Timer.set(20000, false, function () { LED.rt = 0; ledApply(false); }); } }   // Schreiben abgelehnt: merken (led.err in der Meldung) und nach 20 s noch einmal
+let CF_RETRY = 0; let HK = 0;
+function ledErr(m, pp) { LED.err = String(m).slice(0, 60); LED.p = JSON.stringify(pp).slice(0, 150); LED.shown = ""; LED.rt = 1; }   // Schreiben abgelehnt: merken (led.err in der Meldung), hk() versucht es nach spaetestens 60 s noch einmal
 // Ring abgleichen (30 s nach dem Start, dann alle 10 Minuten): steht am Geraet eine andere Farbe als gewollt (z. B. Lila von einem Update), neu schreiben. Nur Lesen, geschrieben wird nur bei Abweichung.
 function ledAudit() {
   if (!LED.ui || !LED.told || LED.mode !== "status" || CF.on || updBusy) return;
@@ -334,8 +331,18 @@ function ledAudit() {
     if (c && c.leds && (c.leds.mode !== "switch" || (k && k.on && k.on.rgb && Math.round(k.on.rgb[0]) !== w[0] || Math.round(k.on.brightness) !== 100))) { LED.shown = ""; ledApply(false); }
   });
 }
-Timer.set(30000, false, ledAudit); Timer.set(600000, true, ledAudit);
 // --- Freier Arbeitsspeicher (Matter bleibt wie vom Kunden eingestellt): alle 5 Minuten messen, steht als ram in der Meldung ---
 let RAM = 0;
 function ramRead() { rpc("Sys.GetStatus", {}, function (r) { if (r && typeof r.ram_free === "number") RAM = r.ram_free; }); }
-ramRead(); Timer.set(300000, true, ramRead);
+ramRead();
+// --- Ein einziger Haushaltstakt (60 s) statt vieler Timer: das Geraet erlaubt nur ca. 5 gleichzeitig, ein sechster beendete das Skript ("Too many running timers") ---
+function hk() {
+  HK++;
+  if (CF.on && Shelly.getUptimeMs() >= CF.until) cfEnd();
+  if (LED.xfer && !CF.on && !updBusy && queue.length <= 3) ledXfer(false);   // Ring nicht lila haengen lassen
+  if (LED.rt) { LED.rt = 0; ledApply(false); }
+  if (HK % 10 === 1) ledAudit();   // Ring abgleichen: steht am Geraet eine andere Farbe als gewollt, neu schreiben
+  if (HK % 5 === 0) ramRead();
+  if (CF_RETRY) { CF_RETRY = 0; cfgLoad(); }
+}
+Timer.set(60000, true, hk);
