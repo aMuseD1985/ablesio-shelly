@@ -30,3 +30,13 @@ Hier steht **nichts Geheimes** – nur Prüfsummen und Klartext-Code.
 - Schreiben darf nur der Betreiber; Konto mit Zwei-Faktor-Anmeldung.
 - Auf dem ablesio-Server liegt **kein** Zugang zu diesem Repository.
 - Neue Einträge in `releases.txt` nur über einen eigenen Commit nach Prüfung der neuen Version.
+
+## Abgestürztes Script neu aufspielen (Chunk-Upload)
+
+Der Web-Editor der Shelly-Oberfläche kürzt Code bei 8 KB. Für ein gestopptes/abgestürztes Script daher die Gerätefassung in Stücken hochladen (Python 3, im selben WLAN, keine Zusatzpakete):
+
+```
+python3 script/shelly_upload.py <IP-des-Steckers> script/ablesio-shelly-geraet-4c225f129a.js [Script-ID]
+```
+
+Ohne Script-ID wird ein neues Script angelegt; das alte `ablesio`-Script vorher in der Shelly-Oberfläche stoppen und löschen (oder dessen ID angeben). Das Skript prüft nach dem Hochladen Zeichen für Zeichen und startet es. Melde-Link und Erzeugungsmodus bleiben im Geräte-Speicher (KVS) erhalten.
